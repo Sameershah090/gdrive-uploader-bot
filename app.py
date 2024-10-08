@@ -9,16 +9,32 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from io import BytesIO
+import base64
 
 app = Flask(__name__)
 
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
-PORT = int(os.environ.get('PORT', 5000))
+WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
+PORT = int(os.environ.get('PORT', 8080))
+GOOGLE_PICKLE = os.environ.get('GOOGLE_PICKLE')
 
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
 def start(update: Update, context: CallbackContext) -> None:
     update.message.reply_text('Welcome! Send me any file, and I will upload it to your Google Drive.')
+
+def get_google_creds():
+    creds = None
+    if GOOGLE_PICKLE:
+        pickled = base64.b64decode(GOOGLE_PICKLE)
+        creds = pickle.loads(pickled)
+    
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            raise Exception("No valid credentials found.")
+    return creds
 
 def process_file(update: Update, context: CallbackContext) -> None:
     if update.message.document:
@@ -33,17 +49,7 @@ def process_file(update: Update, context: CallbackContext) -> None:
         file_content = BytesIO(response.content)
 
         try:
-            creds = None
-            if os.path.exists('token.pickle'):
-                with open('token.pickle', 'rb') as token:
-                    creds = pickle.load(token)
-            
-            if not creds or not creds.valid:
-                if creds and creds.expired and creds.refresh_token:
-                    creds.refresh(Request())
-                else:
-                    raise Exception("No valid credentials found.")
-
+            creds = get_google_creds()
             service = build('drive', 'v3', credentials=creds)
 
             file_metadata = {'name': file_name}
@@ -70,7 +76,7 @@ def webhook():
     return 'ok'
 
 if __name__ == '__main__':
-    bot = setup_webhook(os.environ.get('APP_URL'))
+    bot = setup_webhook(WEBHOOK_URL)
     dp = Dispatcher(bot, None, workers=0)
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(MessageHandler(Filters.document, process_file))
