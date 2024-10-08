@@ -1,5 +1,6 @@
-__pycache__
+echo "venv/
 *.pyc
+__pycache__/
 .env
-client_secrets.json
 token.pickle
+credentials.json" > .gitignore
