@@ -13,8 +13,7 @@ from io import BytesIO
 app = Flask(__name__)
 
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
-WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
-PORT = int(os.environ.get('PORT', 8080))
+PORT = int(os.environ.get('PORT', 5000))
 
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
@@ -59,12 +58,10 @@ def process_file(update: Update, context: CallbackContext) -> None:
     else:
         update.message.reply_text('Please send a file to upload.')
 
-def setup_bot():
+def setup_webhook(url):
     bot = Bot(TELEGRAM_BOT_TOKEN)
-    dp = Dispatcher(bot, None, workers=0)
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(MessageHandler(Filters.document, process_file))
-    return bot, dp
+    bot.set_webhook(url + "/webhook")
+    return bot
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -73,10 +70,8 @@ def webhook():
     return 'ok'
 
 if __name__ == '__main__':
-    bot, dp = setup_bot()
-    if WEBHOOK_URL:
-        app.run(host='0.0.0.0', port=PORT)
-    else:
-        updater = Updater(TELEGRAM_BOT_TOKEN, use_context=True)
-        updater.start_polling()
-        updater.idle()
+    bot = setup_webhook(os.environ.get('APP_URL'))
+    dp = Dispatcher(bot, None, workers=0)
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(MessageHandler(Filters.document, process_file))
+    app.run(host='0.0.0.0', port=PORT)
